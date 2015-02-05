@@ -1611,6 +1611,73 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
         mPhone.setCellInfoListRate(rateInMillis);
     }
 
+    /**
+     * Allows an application to add a protected sms address if the application has
+     * been granted the permission MODIFY_PROTECTED_SMS_LIST.
+     * @param address
+     * @hide
+     */
+    @Override
+    public void addProtectedSmsAddress(String address) {
+        // Enforce MODIFY_PROTECTED_SMS_LIST permission
+        // requires the application to be signature
+        enforceModifyProtectedSms();
+
+        if (TextUtils.isEmpty(address)) {
+            return;
+        }
+
+        //Normalize the number
+        String normalized = PhoneNumberUtil.normalizeDigitsOnly(address);
+
+        List<String> settings =
+                Settings.Secure.getDelimitedStringAsList(mApp.getContentResolver(),
+                        Settings.Secure.PROTECTED_SMS_ADDRESSES, "|");
+        if (!settings.contains(normalized)) {
+            // Add the address
+            settings.add(normalized);
+        }
+
+        // Commit
+        Settings.Secure.putListAsDelimitedString(mApp.getContentResolver(),
+                Settings.Secure.PROTECTED_SMS_ADDRESSES, "|", settings);
+    }
+
+    /**
+     * Allows an application to revoke/remove a protected sms address if the application has been
+     * granted the permission MODIFY_PROTECTED_SMS_LIST.
+     * @param address
+     * @return true if address is successfully removed
+     * @hide
+     */
+    @Override
+    public boolean revokeProtectedSmsAddress(String address) {
+        // Enforce MODIFY_PROTECTED_SMS_LIST permission
+        // requires the application to be signature
+        enforceModifyProtectedSms();
+
+        if (TextUtils.isEmpty(address)) {
+            return false;
+        }
+
+        //Normalize the number
+        String normalized = PhoneNumberUtil.normalizeDigitsOnly(address);
+
+        List<String> settings =
+                Settings.Secure.getDelimitedStringAsList(mApp.getContentResolver(),
+                        Settings.Secure.PROTECTED_SMS_ADDRESSES, "\\|");
+
+        if (settings.contains(normalized)) {
+            settings.remove(normalized);
+            // Commit
+            Settings.Secure.putString(mApp.getContentResolver(),
+                    Settings.Secure.PROTECTED_SMS_ADDRESSES, TextUtils.join("\\|", settings));
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     //
     // Internal helper methods.
     //
