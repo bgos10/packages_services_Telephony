@@ -82,4 +82,10 @@
                       android:targetClass="com.qti.xdivert.XDivertSetting" />
       </PreferenceScreen>
 
+    <SwitchPreference
+        android:key="use_non_intrusive_call"
+        android:title="@string/use_non_intrusive_call_title"
+        android:persistent="false" />
+
+
 </PreferenceScreen>
