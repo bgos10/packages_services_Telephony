@@ -3,6 +3,7 @@
  * Not a Contribution.
  *
  * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (C) 2014 The CyanogenMod Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +27,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -41,12 +43,14 @@ import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.preference.CheckBoxPreference;
+import android.os.PowerManager;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
+import android.preference.SlimSeekBarPreference;
+import android.preference.SwitchPreference;
 import android.provider.ContactsContract.CommonDataKinds;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
@@ -70,6 +74,7 @@ import com.android.phone.PhoneGlobals;
 import com.android.phone.PhoneUtils;
 import com.android.phone.R;
 import com.android.phone.common.util.SettingsUtil;
+import com.android.internal.telephony.util.BlacklistUtils;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -178,11 +183,17 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
             "button_voicemail_notification_ringtone_key";
     private static final String BUTTON_FDN_KEY   = "button_fdn_key";
 
+    private static final String PROX_AUTO_SPEAKER  = "prox_auto_speaker";
+    private static final String PROX_AUTO_SPEAKER_DELAY  = "prox_auto_speaker_delay";
+    private static final String PROX_AUTO_SPEAKER_INCALL_ONLY  = "prox_auto_speaker_incall_only";
+
     private static final String BUTTON_GSM_UMTS_OPTIONS = "button_gsm_more_expand_key";
     private static final String BUTTON_CDMA_OPTIONS = "button_cdma_more_expand_key";
 
     private static final String BUTTON_CF_EXPAND_KEY = "button_cf_expand_key";
     private static final String BUTTON_MORE_EXPAND_KEY = "button_more_expand_key";
+
+    private static final String USE_NON_INTRUSIVE_CALL_KEY = "use_non_intrusive_call";
 
     private static final String VM_NUMBERS_SHARED_PREFERENCES_NAME = "vm_numbers";
 
@@ -232,11 +243,19 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
     private static final String VOICEMAIL_VIBRATION_ALWAYS = "always";
     private static final String VOICEMAIL_VIBRATION_NEVER = "never";
 
+    // Blacklist support
+    private static final String BUTTON_BLACKLIST = "button_blacklist";
+
     private PreferenceScreen mSubscriptionPrefFDN;
     private PreferenceScreen mSubscriptionPrefGSM;
     private PreferenceScreen mSubscriptionPrefCDMA;
     private PreferenceScreen mSubscriptionPrefEXPAND;
     private PreferenceScreen mSubscriptionPrefMOREEXPAND;
+
+    private SwitchPreference mProxSpeaker;
+    private SlimSeekBarPreference mProxSpeakerDelay;
+    private SwitchPreference mProxSpeakerIncallOnly;
+    private SwitchPreference mUseNonIntrusiveCall;
 
     private EditPhoneNumberPreference mSubMenuVoicemailSettings;
 
@@ -262,7 +281,9 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
     private ListPreference mVoicemailProviders;
     private PreferenceScreen mVoicemailSettings;
     private Preference mVoicemailNotificationRingtone;
-    private CheckBoxPreference mVoicemailNotificationVibrate;
+    private SwitchPreference mVoicemailNotificationVibrate;
+    private boolean isSpeedDialListStarted = false;
+    private PreferenceScreen mButtonBlacklist;
 
     private int mSubId;
 
@@ -469,6 +490,13 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
     public boolean onPreferenceTreeClick(PreferenceScreen preferenceScreen, Preference preference) {
         if (preference == mSubMenuVoicemailSettings) {
             return true;
+        } else if (preference == mProxSpeaker) {
+            Settings.System.putInt(getContentResolver(), Settings.System.PROXIMITY_AUTO_SPEAKER,
+                    mProxSpeaker.isChecked() ? 1 : 0);
+        } else if (preference == mProxSpeakerIncallOnly) {
+            Settings.System.putInt(getContentResolver(),
+                    Settings.System.PROXIMITY_AUTO_SPEAKER_INCALL_ONLY,
+                    mProxSpeakerIncallOnly.isChecked() ? 1 : 0);
         } else if (preference == mVoicemailSettings) {
             if (DBG) log("onPreferenceTreeClick: Voicemail Settings Preference is clicked.");
             if (preference.getIntent() != null) {
@@ -556,7 +584,16 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
             Settings.System.putInt(getContentResolver(),
                 Settings.System.CALL_FLIP_ACTION_KEY, index);
             updateFlipActionSummary(index);
-        }
+        } else if (preference == mProxSpeakerDelay) {
+            int delay = Integer.valueOf((String) objValue);
+            Settings.System.putInt(getContentResolver(),
+                    Settings.System.PROXIMITY_AUTO_SPEAKER_DELAY, delay);
+        } else if (preference == mUseNonIntrusiveCall) {
+            final boolean val = (Boolean) objValue;
+            Settings.System.putInt(getContentResolver(),
+                    Settings.System.USE_NON_INTRUSIVE_CALL, val ? 1 : 0);
+         }
+
         // always let the preference setting proceed.
         return true;
     }
@@ -1513,10 +1550,59 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
             mVoicemailNotificationRingtone =
                     findPreference(BUTTON_VOICEMAIL_NOTIFICATION_RINGTONE_KEY);
             mVoicemailNotificationVibrate =
-                    (CheckBoxPreference) findPreference(BUTTON_VOICEMAIL_NOTIFICATION_VIBRATE_KEY);
+                    (SwitchPreference) findPreference(BUTTON_VOICEMAIL_NOTIFICATION_VIBRATE_KEY);
             mVoicemailNotificationVibrate.setOnPreferenceChangeListener(this);
 
             initVoiceMailProviders();
+        }
+
+        mProxSpeaker = (SwitchPreference) findPreference(PROX_AUTO_SPEAKER);
+        mProxSpeakerIncallOnly = (SwitchPreference) findPreference(PROX_AUTO_SPEAKER_INCALL_ONLY);
+        mProxSpeakerDelay = (SlimSeekBarPreference) findPreference(PROX_AUTO_SPEAKER_DELAY);
+        if (mProxSpeakerDelay != null) {
+            mProxSpeakerDelay.setDefault(100);
+            mProxSpeakerDelay.isMilliseconds(true);
+            mProxSpeakerDelay.setInterval(1);
+            mProxSpeakerDelay.minimumValue(100);
+            mProxSpeakerDelay.multiplyValue(100);
+            mProxSpeakerDelay.setOnPreferenceChangeListener(this);
+        }
+        mUseNonIntrusiveCall = (SwitchPreference) findPreference(USE_NON_INTRUSIVE_CALL_KEY);
+        if (mUseNonIntrusiveCall != null) {
+            mUseNonIntrusiveCall.setOnPreferenceChangeListener(this);
+        }
+
+        final ContentResolver contentResolver = getContentResolver();
+
+        if (mProxSpeaker != null) {
+            PowerManager pm = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
+            if (pm.isWakeLockLevelSupported(
+                    PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)
+                    && getResources().getBoolean(R.bool.config_enabled_speakerprox)) {
+                mProxSpeaker.setChecked(Settings.System.getInt(contentResolver,
+                        Settings.System.PROXIMITY_AUTO_SPEAKER, 0) == 1);
+                if (mProxSpeakerIncallOnly != null) {
+                    mProxSpeakerIncallOnly.setChecked(Settings.System.getInt(contentResolver,
+                            Settings.System.PROXIMITY_AUTO_SPEAKER_INCALL_ONLY, 0) == 1);
+                }
+                if (mProxSpeakerDelay != null) {
+                    final int proxDelay = Settings.System.getInt(getContentResolver(),
+                            Settings.System.PROXIMITY_AUTO_SPEAKER_DELAY, 100);
+                    // minimum 100 is 1 interval of the 100 multiplier
+                    mProxSpeakerDelay.setInitValue((proxDelay / 100) - 1);
+                }
+            } else {
+                prefSet.removePreference(mProxSpeaker);
+                mProxSpeaker = null;
+                if (mProxSpeakerIncallOnly != null) {
+                    prefSet.removePreference(mProxSpeakerIncallOnly);
+                    mProxSpeakerIncallOnly = null;
+                }
+                if (mProxSpeakerDelay != null) {
+                    prefSet.removePreference(mProxSpeakerDelay);
+                   mProxSpeakerDelay = null;
+                }
+            }
         }
 
         if (!getResources().getBoolean(R.bool.world_phone)) {
@@ -1579,6 +1665,9 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
         updateVoiceNumberField();
         mVMProviderSettingsForced = false;
 
+        // Blacklist screen - Needed for setting summary
+        mButtonBlacklist = (PreferenceScreen) prefSet.findPreference(BUTTON_BLACKLIST);
+
         mRingtoneLookupRunnable = new Runnable() {
             @Override
             public void run() {
@@ -1635,6 +1724,11 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
             updateFlipActionSummary(flipAction);
         }
 
+        if (mUseNonIntrusiveCall != null) {
+            mUseNonIntrusiveCall.setChecked(Settings.System.getInt(getContentResolver(),
+                Settings.System.USE_NON_INTRUSIVE_CALL, 1) != 0);
+        }
+
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
                 mPhone.getContext());
         if (CallFeaturesSetting.migrateVoicemailVibrationSettingsIfNeeded(prefs,
@@ -1645,6 +1739,17 @@ public class MSimCallFeaturesSubSetting extends PreferenceActivity
 
         // Look up the default/voicemail ringtone name asynchronously and update its preference.
         new Thread(mRingtoneLookupRunnable).start();
+        updateBlacklistSummary();
+    }
+
+    private void updateBlacklistSummary() {
+        if (mButtonBlacklist != null) {
+            if (BlacklistUtils.isBlacklistEnabled(this)) {
+                mButtonBlacklist.setSummary(R.string.blacklist_summary);
+            } else {
+                mButtonBlacklist.setSummary(R.string.blacklist_summary_disabled);
+            }
+        }
     }
 
     private boolean isAirplaneModeOn() {

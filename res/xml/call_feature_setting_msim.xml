@@ -20,9 +20,22 @@
     xmlns:phone="http://schemas.android.com/apk/res/com.android.phone"
     android:title="@string/updating_title">
 
+<<<<<<< HEAD
   <PreferenceCategory
       android:key="sim_category_key"
       android:title="@string/callind_multi_sim" />
+=======
+    <!-- target class is com.android.phone.MultiSimSetting -->
+  <PreferenceScreen
+      android:key="button_call_independent_serv"
+      android:title="@string/callind_multi_sim"
+      android:persistent="false">
+
+      <intent android:action="android.intent.action.MAIN"
+          android:targetPackage="com.android.phone"
+          android:targetClass="com.android.phone.MSimMobileNetworkSubSettings" />
+  </PreferenceScreen>
+>>>>>>> 7dad587... Fix Phone > Settings > Call Settings FC on MSIM
 
   <PreferenceCategory
       android:key="button_misc_category_key"
@@ -66,7 +79,7 @@
         android:entries="@array/dtmf_tone_entries"
         android:entryValues="@array/dtmf_tone_values"/>
 
-     <SwitchPreference
+    <SwitchPreference
         android:key="button_enable_video_calling"
         android:title="@string/enable_video_calling_title"
         android:persistent="true"
@@ -80,6 +93,10 @@
         android:entryValues="@array/flip_action_setting_values"
         android:persistent="false" />
 
+    <SwitchPreference
+        android:key="use_non_intrusive_call"
+        android:title="@string/use_non_intrusive_call_title"
+        android:persistent="false" />
 
       <PreferenceScreen
           android:key="button_xdivert"
@@ -96,5 +113,46 @@
         android:title="@string/use_non_intrusive_call_title"
         android:persistent="false" />
 
+    <PreferenceCategory
+            android:key="category_prox_auto_speaker"
+            android:title="@string/display_category_prox_auto_speaker_title" >
 
+        <SwitchPreference
+            android:key="prox_auto_speaker"
+            android:title="@string/prox_auto_speaker_title"
+            android:summary="@string/prox_auto_speaker_summary"
+            android:persistent="false"
+            android:defaultValue="false" />
+
+        <SlimSeekBarPreference
+            android:key="prox_auto_speaker_delay"
+            android:title="@string/prox_auto_speaker_delay_title"
+            android:summary="@string/prox_auto_speaker_delay_summary"
+            android:persistent="false"
+            android:dependency="prox_auto_speaker" />
+
+        <SwitchPreference
+            android:key="prox_auto_speaker_incall_only"
+            android:title="@string/prox_auto_speaker_incall_only_title"
+            android:summaryOff="@string/prox_auto_speaker_incall_only_summary_off"
+            android:summaryOn="@string/prox_auto_speaker_incall_only_summary_on"
+            android:persistent="false"
+            android:defaultValue="false"
+            android:dependency="prox_auto_speaker" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="pref_advanced_settings"
+        android:title="@string/advanced_settings">
+
+         <PreferenceScreen
+             android:key="button_blacklist"
+             android:title="@string/blacklist_title"
+             android:persistent="false">
+             <intent android:action="android.intent.action.MAIN"
+                 android:targetPackage="com.android.settings"
+                 android:targetClass="com.android.settings.Settings$BlacklistSettingsActivity" />
+         </PreferenceScreen>
+    </PreferenceCategory>
 </PreferenceScreen>
