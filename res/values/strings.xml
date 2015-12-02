@@ -1473,10 +1473,4 @@
 
     <string name="msim_mobile_network_settings_title">SIM %d mobile network settings</string>
 
-     <!-- XDivert Settings -->
-     <!-- Title for the XDivert Feature displayed in Call Settings -->
-     <string name="xdivert_title">X-Divert</string>
-     <!-- Summary for the XDivert Feature displayed in Call Settings -->
-     <string name="xdivert_summary">CFNRc Settings</string>
-
 </resources>
