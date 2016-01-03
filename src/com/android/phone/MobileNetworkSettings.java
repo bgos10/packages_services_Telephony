@@ -803,6 +803,15 @@ public class MobileNetworkSettings extends PreferenceActivity
         if (ps != null) {
             ps.setEnabled(hasActiveSubscriptions);
         }
+        boolean isDsds = TelephonyManager.getDefault().getMultiSimConfiguration()
+                == TelephonyManager.MultiSimVariants.DSDS;
+        boolean isMultiRat = SystemProperties.getBoolean("ro.ril.multi_rat_capable", false);
+        if (isDsds && !isMultiRat && (mPhone.getSubId()
+                != mSubscriptionManager.getDefaultDataSubId())) {
+            root.removePreference(mButtonPreferredNetworkMode);
+            root.removePreference(mLteDataServicePref);
+            root.removePreference(mButtonEnabledNetworks);
+        }
     }
 
     @Override
